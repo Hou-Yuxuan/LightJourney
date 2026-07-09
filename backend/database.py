@@ -1,21 +1,37 @@
 # -*- coding: utf-8 -*-
-"""
-数据库连接
-SQLAlchemy 引擎、Session 工厂、Base 定义
-"""
+"""数据库连接 — SQLAlchemy 2.0 引擎、会话工厂、依赖注入"""
+from collections.abc import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-from config import DATABASE_URL
+from config import settings
 
+# SQLite 引擎（check_same_thread=False 允许跨线程访问）
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},  # SQLite 需要此参数
+    settings.database_url,
+    connect_args={"check_same_thread": False},
     echo=False,
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# 会话工厂
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
+
+# ORM 基类
+Base = declarative_base()
 
 
-class Base(DeclarativeBase):
-    pass
+def get_db() -> Generator:
+    """
+    FastAPI 依赖注入：获取数据库会话。
+    请求结束时自动关闭会话，防止连接泄漏。
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
