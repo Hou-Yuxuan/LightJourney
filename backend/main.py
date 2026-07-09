@@ -24,6 +24,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- 路由注册 ---
+from routers.auth import router as auth_router
+from routers.trips import router as trips_router
+from routers.ai import router as ai_router
+
+app.include_router(auth_router)
+app.include_router(trips_router)
+app.include_router(ai_router)
 # ─── 启动事件：自动建表 ──────────────────────────────────
 @app.on_event("startup")
 def startup():
