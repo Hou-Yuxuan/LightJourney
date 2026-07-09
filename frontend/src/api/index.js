@@ -24,10 +24,14 @@ api.interceptors.response.use(
   (response) => {
     const { code, message } = response.data
     if (code === 401) {
-      const userStore = useUserStore()
-      userStore.clearAuth()
-      ElMessage.error('登录已过期，请重新登录')
-      window.location.href = '/login'
+      // 登录/注册页的 401 交由组件自行处理，不触发全局拦截
+      const isAuthPage = ['/login', '/register'].includes(window.location.pathname)
+      if (!isAuthPage) {
+        const userStore = useUserStore()
+        userStore.clearAuth()
+        ElMessage.error('登录已过期，请重新登录')
+        window.location.href = '/login'
+      }
       return Promise.reject(new Error(message))
     }
     return response
