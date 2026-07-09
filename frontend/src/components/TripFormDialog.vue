@@ -63,8 +63,9 @@
 </template>
 
 <script setup>
-// TODO: P4 实现 — 表单提交逻辑（新建 / 编辑），调用 api/trips.js
 import { ref, reactive, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import { createTrip, updateTrip } from '../api/trips'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -77,7 +78,8 @@ const isEdit = ref(false)
 const loading = ref(false)
 const formRef = ref(null)
 
-const form = reactive({
+// 表单默认值，用于重置
+const defaultForm = () => ({
   city: '',
   date: '',
   start_time: '',
@@ -87,25 +89,72 @@ const form = reactive({
   budget: 0,
 })
 
+const form = reactive(defaultForm())
+
+// 自定义校验：结束时间必须晚于开始时间
+const validateTimeRange = (_rule, _value, callback) => {
+  if (form.start_time && form.end_time && form.end_time <= form.start_time) {
+    callback(new Error('结束时间必须晚于开始时间'))
+  } else {
+    callback()
+  }
+}
+
 const rules = {
   city: [{ required: true, message: '请输入城市', trigger: 'blur' }],
   date: [{ required: true, message: '请选择日期', trigger: 'change' }],
   start_time: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
-  end_time: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
+  end_time: [
+    { required: true, message: '请选择结束时间', trigger: 'change' },
+    { validator: validateTimeRange, trigger: 'change' },
+  ],
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
 }
 
+// 弹窗打开/关闭时初始化表单
 watch(() => props.visible, (val) => {
-  if (val && props.trip) {
+  if (!val) return
+
+  // 重置表单
+  Object.assign(form, defaultForm())
+  formRef.value?.clearValidate()
+
+  if (props.trip) {
     isEdit.value = true
-    Object.assign(form, props.trip)
-  } else if (val) {
+    Object.assign(form, {
+      city: props.trip.city || '',
+      date: props.trip.date || '',
+      start_time: props.trip.start_time || '',
+      end_time: props.trip.end_time || '',
+      title: props.trip.title || '',
+      description: props.trip.description || '',
+      budget: props.trip.budget ?? 0,
+    })
+  } else {
     isEdit.value = false
-    formRef.value?.resetFields()
   }
 })
 
 const handleSubmit = async () => {
-  // TODO: P4 实现
+  // 前端校验
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+
+  loading.value = true
+  try {
+    if (isEdit.value) {
+      await updateTrip(props.trip.id, form)
+      ElMessage.success('行程更新成功')
+    } else {
+      await createTrip(form)
+      ElMessage.success('行程创建成功')
+    }
+    emit('update:visible', false)
+    emit('saved')
+  } catch {
+    // 错误已由 axios 拦截器统一处理（409 冲突等）
+  } finally {
+    loading.value = false
+  }
 }
 </script>
