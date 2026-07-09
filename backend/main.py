@@ -34,15 +34,13 @@ app.add_middleware(
 )
 
 # --- 路由注册 ---
-# 各模块开发完成后取消对应注释：
+from routers.auth import router as auth_router
+from routers.trips import router as trips_router
+from routers.ai import router as ai_router
 
-# from routers.auth import router as auth_router
-# from routers.trips import router as trips_router
-# from routers.ai import router as ai_router
-#
-# app.include_router(auth_router)
-# app.include_router(trips_router)
-# app.include_router(ai_router)
+app.include_router(auth_router)
+app.include_router(trips_router)
+app.include_router(ai_router)
 
 
 @app.get("/api/health")

@@ -24,5 +24,23 @@ def create_access_token(user_id: int) -> str:
 
 
 def decode_access_token(token: str) -> int:
-    """TODO: P1 实现 — 验证并解析 JWT，返回 user_id"""
-    raise NotImplementedError("P1 需要实现 JWT 解析逻辑")
+    """
+    验证并解析 JWT access token，返回 user_id。
+
+    由 P2 补实现（P1 未完成 BE-07 时临时承担）。
+
+    Args:
+        token: JWT token 字符串
+
+    Returns:
+        解析出的 user_id
+
+    Raises:
+        jwt.ExpiredSignatureError: token 已过期
+        jwt.InvalidTokenError: token 无效
+    """
+    payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise jwt.InvalidTokenError("Token 中缺少 user_id")
+    return int(user_id)
