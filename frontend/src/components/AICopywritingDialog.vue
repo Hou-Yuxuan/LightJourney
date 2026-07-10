@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="visible"
     title="生成分享文案"
-    width="560px"
+    width="480px"
     :close-on-click-modal="false"
     @update:model-value="$emit('update:visible', $event)"
     @open="handleOpen"
@@ -24,26 +24,26 @@
       </template>
     </el-result>
 
-    <!-- 文案展示 -->
+    <!-- 文案展示 — 上方图片，下方文案 -->
     <div v-else-if="copywritingText" class="copywriting-result">
-      <div class="copywriting-result__trip-info">
-        <el-tag size="small" effect="plain">{{ tripTitle }}</el-tag>
+      <!-- 行程封面图 -->
+      <div class="copywriting-result__image" v-if="tripImage">
+        <img :src="tripImage" :alt="tripTitle" />
+      </div>
+
+      <!-- 行程信息 -->
+      <div class="copywriting-result__header">
+        <span class="copywriting-result__title">{{ tripTitle }}</span>
         <span class="copywriting-result__date">{{ tripDate }}</span>
       </div>
 
-      <!-- 文案编辑区 -->
-      <el-input
-        v-model="copywritingText"
-        type="textarea"
-        :rows="7"
-        resize="none"
-        class="copywriting-result__textarea"
-        placeholder="AI 生成的文案..."
-      />
+      <!-- 文案 -->
+      <div class="copywriting-result__text">{{ copywritingText }}</div>
 
+      <!-- 操作区 -->
       <div class="copywriting-result__actions">
-        <span class="copywriting-result__hint">可编辑文字后复制</span>
-        <el-button type="primary" :icon="DocumentCopy" @click="handleCopy" :loading="copied">
+        <span class="copywriting-result__hint">可编辑后复制</span>
+        <el-button type="primary" :icon="DocumentCopy" @click="handleCopy" :loading="copied" size="small">
           {{ copied ? '已复制' : '一键复制' }}
         </el-button>
       </div>
@@ -61,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy } from '@element-plus/icons-vue'
 import { generateCopywriting } from '../api/ai'
@@ -77,6 +77,7 @@ const loading = ref(false)
 const copywritingText = ref('')
 const tripTitle = ref('')
 const tripDate = ref('')
+const tripImage = ref('')
 const errorMsg = ref('')
 const copied = ref(false)
 
@@ -95,6 +96,7 @@ async function handleOpen() {
     copywritingText.value = data.copywriting || ''
     tripTitle.value = data.trip_title || props.trip.title || ''
     tripDate.value = data.trip_date || props.trip.date || ''
+    tripImage.value = props.trip.image_url || ''
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'AI 服务暂时不可用，请稍后重试'
   } finally {
@@ -124,11 +126,35 @@ async function handleCopy() {
   padding: var(--spacing-lg) 0;
 }
 
-.copywriting-result__trip-info {
+.copywriting-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.copywriting-result__image {
+  width: 100%;
+  height: 200px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #f0f0f0;
+}
+.copywriting-result__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.copywriting-result__header {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
+}
+
+.copywriting-result__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
 }
 
 .copywriting-result__date {
@@ -136,8 +162,15 @@ async function handleCopy() {
   color: var(--text-secondary);
 }
 
-.copywriting-result__textarea {
-  margin-bottom: var(--spacing-md);
+.copywriting-result__text {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  padding: var(--spacing-md);
+  background: #f9fafb;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-accent);
 }
 
 .copywriting-result__actions {

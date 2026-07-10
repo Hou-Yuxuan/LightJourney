@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """应用配置 — 基于 pydantic-settings 的环境变量管理"""
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# .env 文件始终在 backend/ 目录下（config.py 所在目录）
+_ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
 
 class Settings(BaseSettings):
@@ -20,7 +24,7 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILE,
         env_file_encoding="utf-8",
         # 环境变量名全大写，与字段名自动映射
         extra="ignore",
@@ -29,3 +33,10 @@ class Settings(BaseSettings):
 
 # 全局单例
 settings = Settings()
+
+# ── 模块级常量（向后兼容：部分模块直接 import 常量名）──
+DEEPSEEK_API_KEY = settings.deepseek_api_key
+DEEPSEEK_BASE_URL = settings.deepseek_base_url
+DEEPSEEK_MODEL = settings.deepseek_model
+JWT_SECRET = settings.jwt_secret_key
+JWT_ALGORITHM = settings.jwt_algorithm
