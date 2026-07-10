@@ -20,6 +20,7 @@ class Trip(Base):
     end_time = Column(Time, nullable=False)
     title = Column(String(200), nullable=False)
     description = Column(Text, default="")
+    image_url = Column(Text, default="")
     budget = Column(Numeric(10, 2), default=0.00)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

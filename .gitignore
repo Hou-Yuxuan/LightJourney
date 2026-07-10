@@ -18,6 +18,9 @@ node_modules/
 dist/
 .vite/
 
+# ===== 上传文件 =====
+backend/uploads/
+
 # ===== IDE =====
 .vscode/
 .idea/

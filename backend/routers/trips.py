@@ -20,6 +20,7 @@ class TripCreate(BaseModel):
     end_time: str = Field(..., pattern=r"^\d{2}:\d{2}$", description="结束时间 HH:MM")
     title: str = Field(..., min_length=1, max_length=200, description="行程标题")
     description: str = Field(default="", max_length=500, description="行程描述")
+    image_url: str = Field(default="", description="图片（base64 或 URL）")
     budget: float = Field(default=0.00, ge=0, description="人均预算（元）")
 
 
@@ -31,6 +32,7 @@ class TripUpdate(BaseModel):
     end_time: Optional[str] = Field(None, pattern=r"^\d{2}:\d{2}$", description="结束时间")
     title: Optional[str] = Field(None, min_length=1, max_length=200, description="行程标题")
     description: Optional[str] = Field(None, max_length=500, description="行程描述")
+    image_url: Optional[str] = Field(None, description="图片（base64 或 URL）")
     budget: Optional[float] = Field(None, ge=0, description="人均预算（元）")
 
 

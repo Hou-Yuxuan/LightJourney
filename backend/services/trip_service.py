@@ -35,6 +35,7 @@ def _trip_to_dict(trip: Trip) -> dict:
         "end_time": trip.end_time.isoformat() if isinstance(trip.end_time, time) else str(trip.end_time),
         "title": trip.title,
         "description": trip.description or "",
+        "image_url": trip.image_url or "",
         "budget": float(trip.budget) if trip.budget else 0.00,
         "created_at": trip.created_at.isoformat() if trip.created_at else None,
         "updated_at": trip.updated_at.isoformat() if trip.updated_at else None,
@@ -144,6 +145,7 @@ def create_trip(db: Session, user_id: int, data: dict) -> dict:
         end_time=_parse_time(data["end_time"]),
         title=data["title"],
         description=data.get("description", ""),
+        image_url=data.get("image_url", ""),
         budget=data.get("budget", 0.00),
     )
     db.add(trip)
@@ -271,7 +273,7 @@ def update_trip(db: Session, trip_id: int, user_id: int, data: dict) -> dict:
             }
 
     # 逐字段更新
-    updatable_fields = ["city", "date", "start_time", "end_time", "title", "description", "budget"]
+    updatable_fields = ["city", "date", "start_time", "end_time", "title", "description", "image_url", "budget"]
     for field in updatable_fields:
         if field in data:
             value = data[field]

@@ -23,29 +23,16 @@
         v-model="filterCity"
         placeholder="按城市筛选"
         clearable
-        style="width: 200px"
+        style="width: 160px"
         @change="loadTrips"
       />
-      <el-date-picker
-        v-model="filterDateRange"
-        type="daterange"
-        range-separator="至"
-        start-placeholder="开始日期"
-        end-placeholder="结束日期"
-        format="YYYY-MM-DD"
-        value-format="YYYY-MM-DD"
-        style="width: 280px"
-        @change="loadTrips"
-      />
-      <el-button v-if="filterCity || filterDateRange" text @click="handleClearFilters">
-        重置筛选
-      </el-button>
+      <el-button v-if="filterCity" text @click="handleClearFilters">重置</el-button>
       <span class="trip-list-page__total-budget" v-if="totalBudget > 0">
-        总预算：<strong>¥{{ totalBudget }}</strong>
+        总预算 <strong>¥{{ totalBudget }}</strong>
       </span>
     </div>
 
-    <!-- 加载中骨架屏 -->
+    <!-- 加载中 -->
     <div v-if="loading" class="trip-list-page__loading">
       <el-skeleton v-for="i in 3" :key="i" :rows="2" animated style="margin-bottom: 16px" />
     </div>
@@ -53,60 +40,66 @@
     <!-- 空状态 -->
     <div v-else-if="trips.length === 0" class="trip-list-page__empty">
       <el-empty description="还没有行程">
-        <template #image>
-          <img src="" alt="" style="display:none" />
-        </template>
-        <el-button type="primary" @click="showPlanDialog = true">
-          让 AI 帮你规划
-        </el-button>
-        <p class="trip-list-page__empty-hint">或者点击右上角"新建行程"手动添加</p>
+        <el-button type="primary" @click="showPlanDialog = true">让 AI 帮你规划</el-button>
       </el-empty>
     </div>
 
-    <!-- 行程列表：按日期分组 -->
-    <div v-else class="trip-list-page__groups">
-      <div
-        v-for="group in groupedTrips"
-        :key="group.date"
-        class="trip-list-page__group"
-      >
-        <!-- 日期分组标题 -->
+    <!-- 日历 + 行程 -->
+    <template v-else>
+      <!-- 日历 -->
+      <div class="trip-list-page__calendar">
+        <el-calendar v-model="selectedDate">
+          <template #date-cell="{ data }">
+            <div
+              class="calendar-cell"
+              :class="{ 'calendar-cell--has-trip': tripDates.has(data.day) }"
+            >
+              {{ data.day.split('-').pop() }}
+            </div>
+          </template>
+        </el-calendar>
+      </div>
+
+      <!-- 选中日期行程 -->
+      <div class="trip-list-page__selected">
         <div class="trip-list-page__date-header">
-          <span class="trip-list-page__date-label">{{ group.date }}</span>
-          <span class="trip-list-page__date-weekday">{{ group.weekday }}</span>
-          <span class="trip-list-page__date-budget" v-if="group.dailyBudget > 0">
-            当日预算 ¥{{ group.dailyBudget }}
+          <span class="trip-list-page__date-label">{{ selectedDateStr }}</span>
+          <span class="trip-list-page__date-weekday">{{ selectedWeekday }}</span>
+          <span class="trip-list-page__date-count" v-if="selectedDateTrips.length > 0">
+            {{ selectedDateTrips.length }} 条行程
           </span>
+          <span class="trip-list-page__date-budget" v-if="selectedDateBudget > 0">
+            ¥{{ selectedDateBudget }}
+          </span>
+          <el-button link type="primary" size="small" @click="handleCreateOnDate">
+            <el-icon><Plus /></el-icon>
+          </el-button>
         </div>
 
-        <!-- 该日期下的行程卡片 -->
-        <TransitionGroup name="trip-card-list" tag="div" class="trip-list-page__cards">
+        <div class="trip-list-page__cards" v-if="selectedDateTrips.length > 0">
           <TripCard
-            v-for="trip in group.trips"
+            v-for="trip in selectedDateTrips"
             :key="trip.id"
             :trip="trip"
             @edit="handleEdit"
             @delete="handleDelete"
             @copywriting="handleCopywriting"
           />
-        </TransitionGroup>
+        </div>
+        <p v-else class="trip-list-page__no-trip">暂无行程，点击 + 新建</p>
       </div>
-    </div>
+    </template>
 
-    <!-- 行程编辑弹窗 -->
+    <!-- 弹窗 -->
     <TripFormDialog
       v-model:visible="showFormDialog"
       :trip="editingTrip"
       @saved="handleSaved"
     />
-
-    <!-- AI 规划弹窗 (P5) -->
     <AIPlanDialog
       v-model:visible="showPlanDialog"
       @saved="handleSaved"
     />
-
-    <!-- AI 文案弹窗 (P5) -->
     <AICopywritingDialog
       v-model:visible="showCopywritingDialog"
       :trip="selectedTrip"
@@ -129,126 +122,129 @@ import AICopywritingDialog from '../components/AICopywritingDialog.vue'
 const userStore = useUserStore()
 const router = useRouter()
 
-// ---- 数据状态 ----
+// ---- 数据 ----
 const trips = ref([])
 const dailyBudgets = ref({})
 const totalBudget = ref(0)
 const loading = ref(false)
-
-// ---- 筛选状态 ----
 const filterCity = ref('')
-const filterDateRange = ref([])
 
-// ---- 弹窗控制 ----
+// ---- 日历 ----
+const selectedDate = ref(new Date())
+const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+function fmtDate(d) {
+  if (typeof d === 'string') return d
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const selectedDateStr = computed(() => fmtDate(selectedDate.value))
+
+const tripDates = computed(() => {
+  const set = new Set()
+  trips.value.forEach((t) => set.add(t.date))
+  return set
+})
+
+const selectedWeekday = computed(() => {
+  const d = selectedDate.value
+  return weekdays[d.getDay()]
+})
+
+const selectedDateTrips = computed(() => {
+  const dateStr = selectedDateStr.value
+  return trips.value
+    .filter((t) => t.date === dateStr)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+})
+
+const selectedDateBudget = computed(() => {
+  return dailyBudgets.value[selectedDateStr.value] || 0
+})
+
+// ---- 弹窗 ----
 const showFormDialog = ref(false)
 const showPlanDialog = ref(false)
 const showCopywritingDialog = ref(false)
 const editingTrip = ref(null)
 const selectedTrip = ref(null)
 
-// ---- 星期转换 ----
-const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-function getWeekday(dateStr) {
-  const d = new Date(dateStr)
-  return weekdays[d.getDay()]
-}
-
-// ---- 按日期分组（计算属性） ----
-const groupedTrips = computed(() => {
-  const groups = {}
-  for (const trip of trips.value) {
-    if (!groups[trip.date]) {
-      groups[trip.date] = []
-    }
-    groups[trip.date].push(trip)
-  }
-  // 按日期排序，组内按时段排序
-  return Object.keys(groups)
-    .sort()
-    .reverse()
-    .map((date) => ({
-      date,
-      weekday: getWeekday(date),
-      dailyBudget: dailyBudgets.value[date] || 0,
-      trips: groups[date].sort((a, b) => a.start_time.localeCompare(b.start_time)),
-    }))
-})
-
-// ---- 加载行程列表 ----
+// ---- 加载 ----
 async function loadTrips() {
   loading.value = true
   try {
     const params = {}
     if (filterCity.value) params.city = filterCity.value
-    if (filterDateRange.value && filterDateRange.value.length === 2) {
-      params.date_from = filterDateRange.value[0]
-      params.date_to = filterDateRange.value[1]
-    }
     const res = await getTrips(params)
     const data = res.data.data
     trips.value = data.trips || []
     dailyBudgets.value = data.daily_budgets || {}
     totalBudget.value = data.total_budget || 0
+
+    // 选中日期无行程时跳到最近有行程的日期
+    if (!tripDates.value.has(selectedDateStr.value) && trips.value.length > 0) {
+      const sorted = [...new Set(trips.value.map((t) => t.date))].sort()
+      const today = new Date().toISOString().split('T')[0]
+      selectedDate.value = new Date(sorted.find((d) => d >= today) || sorted[sorted.length - 1])
+    }
   } catch {
-    // 错误已由 axios 拦截器统一处理
+    // 拦截器已处理
   } finally {
     loading.value = false
   }
 }
 
-// ---- 清除筛选 ----
 function handleClearFilters() {
   filterCity.value = ''
-  filterDateRange.value = []
   loadTrips()
 }
 
-// ---- 新建行程 ----
+// ---- 操作 ----
 function handleCreate() {
   editingTrip.value = null
   showFormDialog.value = true
 }
 
-// ---- 编辑行程 ----
+function handleCreateOnDate() {
+  editingTrip.value = { date: selectedDateStr.value }
+  showFormDialog.value = true
+}
+
 function handleEdit(trip) {
   editingTrip.value = trip
   showFormDialog.value = true
 }
 
-// ---- 删除行程 ----
 async function handleDelete(trip) {
   try {
     await ElMessageBox.confirm(
-      `确定删除行程"${trip.title}"吗？删除后不可恢复。`,
+      `确定删除"${trip.title}"吗？`,
       '删除确认',
-      { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
     )
     await deleteTrip(trip.id)
     ElMessage.success('已删除')
     await loadTrips()
-  } catch {
-    // 用户取消删除 或 删除失败（错误已由拦截器处理）
-  }
+  } catch { /* 取消 */ }
 }
 
-// ---- 生成文案 ----
 function handleCopywriting(trip) {
   selectedTrip.value = trip
   showCopywritingDialog.value = true
 }
 
-// ---- 保存成功回调节 ----
 function handleSaved() {
   loadTrips()
 }
 
-// ---- 退出登录 ----
 function handleLogout() {
   userStore.clearAuth()
   router.push('/login')
 }
 
-// ---- 页面初始化 ----
 onMounted(() => {
   loadTrips()
 })
@@ -256,12 +252,12 @@ onMounted(() => {
 
 <style scoped>
 .trip-list-page {
-  max-width: 900px;
+  max-width: 780px;
   margin: 0 auto;
   padding: var(--spacing-lg);
 }
 
-/* 顶部操作栏 */
+/* 顶部 */
 .trip-list-page__header {
   display: flex;
   align-items: center;
@@ -287,93 +283,114 @@ onMounted(() => {
   gap: var(--spacing-sm);
 }
 
-/* 筛选栏 */
+/* 筛选 */
 .trip-list-page__filters {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-  padding: var(--spacing-md);
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
 .trip-list-page__total-budget {
   margin-left: auto;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 .trip-list-page__total-budget strong {
   color: var(--color-accent);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
 }
 
-/* 加载状态 */
-.trip-list-page__loading {
-  padding: var(--spacing-lg) 0;
-}
+/* 加载 / 空 */
+.trip-list-page__loading { padding: var(--spacing-lg) 0; }
+.trip-list-page__empty { padding: var(--spacing-xl) 0; text-align: center; }
 
-/* 空状态 */
-.trip-list-page__empty {
-  padding: var(--spacing-xl) 0;
-  text-align: center;
+/* 日历 */
+.trip-list-page__calendar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--spacing-lg);
 }
-.trip-list-page__empty-hint {
-  margin-top: var(--spacing-sm);
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-/* 日期分组 */
-.trip-list-page__groups {
+.calendar-cell {
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  border-radius: 50%;
+  font-size: var(--font-size-md);
+  transition: var(--transition-fast);
 }
-.trip-list-page__group {
-  /* 分组容器 */
+.calendar-cell--has-trip {
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Element Plus 日历样式覆盖 */
+:deep(.el-calendar) {
+  --el-calendar-border: none;
+  --el-calendar-header-border-bottom: none;
+}
+:deep(.el-calendar__header) {
+  padding: var(--spacing-md) var(--spacing-md) 0;
+}
+:deep(.el-calendar__body) {
+  padding: 0 var(--spacing-sm) var(--spacing-sm);
+}
+:deep(.el-calendar-table td) {
+  border: none !important;
+}
+:deep(.el-calendar-table .el-calendar-day) {
+  height: 44px;
+  padding: 0;
+}
+
+/* 选中日期 */
+.trip-list-page__selected {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--spacing-md);
 }
 .trip-list-page__date-header {
   display: flex;
   align-items: baseline;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm) 0;
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
   border-bottom: 1px solid var(--border-color);
 }
 .trip-list-page__date-label {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
 }
 .trip-list-page__date-weekday {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
-.trip-list-page__date-budget {
+.trip-list-page__date-count {
   margin-left: auto;
   font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.trip-list-page__date-budget {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-accent);
 }
-
-/* 卡片列表 */
 .trip-list-page__cards {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
 }
-
-/* 列表过渡动效 */
-.trip-card-list-enter-active,
-.trip-card-list-leave-active {
-  transition: all 0.3s ease;
-}
-.trip-card-list-enter-from {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-.trip-card-list-leave-to {
-  opacity: 0;
-  transform: translateY(8px);
+.trip-list-page__no-trip {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  padding: var(--spacing-lg) 0;
 }
 </style>
